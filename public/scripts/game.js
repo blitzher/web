@@ -19,57 +19,44 @@ __mosImg.src = "assets/mos.png";
 var __spiImg = new Image;
 __spiImg.src = "assets/spi.png";
 
-class HIVEpiece {
-
-    static antImg = __antImg;
-    static hopImg = __hopImg;
-    static beeImg = __beeImg;
-    static btlImg = __btlImg;
-    static mosImg = __mosImg;
-    static spiImg = __spiImg;
-
-    constructor(index, owner) {
-        this.index = index;
-        this.owner = owner;
-    };
-
-    static fromName(pieceName) {
-        switch (pieceName) {
-            case ("ant"): return Ant;
-        };
-    };
+HIVEpiece = {
+    antImg : __antImg,
+    hopImg : __hopImg,
+    beeImg : __beeImg,
+    btlImg : __btlImg,
+    mosImg : __mosImg,
+    spiImg : __spiImg
 };
 
-class Ant extends HIVEpiece {
-
-    static get name() {
-        return "ant";
-    };
-
-    static get image() {
-        return ant;
-    };
-};
 
 //#endregion
-
 //#region game
-
 //#region setup
 var canvas = document.getElementById("screen");
+
+// disable default right click
+canvas.oncontextmenu = function (e) {
+    e.preventDefault();
+};
 
 var ctx = canvas.getContext("2d");
 var gridRad = 3;
 var hexSize = 0;
-var tileMul = 1.5;
+var tileMul = 1.3;
 var allPositions = [];
 var allIndex = 0;
 var adjacencyMatrix = [];
+var mpos = {x: 0, y: 0}
 
-var selected = -1;
-var hovering = -1;
+var selectedPiece = undefined;
+var hovering = undefined;
+
+var serverData = {
+    clientId : 0,
+    matchId : 0
+};
+
 var player = 0;
-
 
 var occupied = [];
 // debugging purposes
@@ -101,8 +88,40 @@ const cos60 = sin30;
 const sin60 = Math.sqrt(3)/2;
 //#endregion
 //#region init and termination
-function init() {
+async function init() {
+    
+    params = getParams(window.location.href);
 
+    // get client Id from server
+    const response = await fetch("/api/getClientId")
+    const clientId = await response.json();
+    serverData.clientId = clientId.id;
+    
+    // if match id isn't supplied, initalise a new match
+    if (!params.match) {
+        
+        // send client id to server
+        const response = await fetch("/api/getNewMatch", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({id: serverData.clientId}) 
+        });
+        const match = await response.json();
+        serverData.matchId = match.id
+        player = 1;
+    }
+    else {
+        // else, matchid is in parameters
+        serverData.matchId = params.match
+        player = 2;
+    }
+    
+    // update <h1> to reflect current game
+    head = document.getElementById('h1').textContent = "Hive #" + serverData.matchId;
+
+    // TODO: update <link> tag to reflect the same
 };
 
 function terminate() {
@@ -112,14 +131,25 @@ function terminate() {
 //#region update functions
 // sync with server
 function sync() {
-
+    
 };
 
 function update() {
-    // update hex sizes to fit screen
+    // update board size depending on til placements
+    pieceIndices = []
+    occupied.forEach(piece => {
+        pieceIndices.push(piece.index);
+    });
+    maxIndex = Math.max(...pieceIndices);
+
+    // increase grid size if a piece is on the edge
+    gridRad = getSphereByIndex(maxIndex) + 1;
+    
+    // decrease hex size if grid size increases
     shortestSide = Math.min(canvas.width, canvas.height)
     hexSize = shortestSide / (gridRad * 3.5);
 
+    // 
     allIndex = getAllIndex();
     allPositions = getAllPosition();
 };
@@ -140,6 +170,33 @@ canvas.addEventListener('mousemove', function(event) {
     else {
         canvas.style.cursor = 'default'
     }
+});
+
+function mouseDown(event) {    
+
+    switch (event.button) {
+        case (0): // left mouse
+            // get all pieces in the index which is being hovered
+            selectedNow = getPieceByIndex(getIndexByPos(mpos));
+            
+            // if selected something unoccupied and selected something
+            if (movePiece()) {
+                
+            }
+            else {
+                selectedPiece = selectedNow;
+            };
+            break;
+            
+
+        case (2): // right mouse
+            selectedPiece = undefined;
+    };
+};
+
+canvas.addEventListener('mousedown', mouseDown); 
+canvas.addEventListener('mouseup', (e) => {
+    movePiece()
 });
 
 //#endregion
@@ -164,22 +221,62 @@ function distance(point1, point2) {
     return Math.sqrt(distSquared);
 };
 
+function movePiece() {
+    // attempt to move a piece, checking for stuff before
+    selectedNow = getPieceByIndex(getIndexByPos(mpos));
+            
+    // if selected something unoccupied and selected something
+    
+    if (!selectedNow && selectedPiece) {
+    
+        if (getIndexByPos(mpos) === undefined) {
+            return;
+        }
+
+        selectedPiece.index = getIndexByPos(mpos);
+        selectedPiece = undefined;
+        return true;
+    };
+};
+
+var getParams = function (url) {
+	var params = {};
+	var parser = document.createElement('a');
+	parser.href = url;
+	var query = parser.search.substring(1);
+	var vars = query.split('&');
+	for (var i = 0; i < vars.length; i++) {
+		var pair = vars[i].split('=');
+		params[pair[0]] = decodeURIComponent(pair[1]);
+	}
+	return params;
+};
+
+function getSphereByIndex(index) {
+
+    getIndexForSphere = (index) => {
+        amount = 0;
+        for (let i = 1; i < index; i++) {
+            amount += i * 6
+        };
+        return amount;
+    };
+
+    sphereIndex = 0;
+    while (index > getIndexForSphere(sphereIndex)) {
+        sphereIndex++;
+    };
+    return sphereIndex;
+};
+
 function getAllIndex() {
+    
     amount = 0;
     for (let i = 1; i < gridRad; i++) {
         amount += i * 6
     };
     return amount;
 };
-
-// function getAllCombinations(...numbers) {
-//     output = []
-//     numbers.forEach(num1 => {
-//         numbers.forEach(num2 => {
-//             output.push([num1, num2])
-//         });
-//     });
-// }
 
 function getAllPosition() {
     positions = [{
@@ -237,16 +334,53 @@ function getIndexByPos(pos) {
     };
 };
 
+function getPiecesByIndex(index) {
+    inIndex = [];
+    occupied.forEach(piece => {
+        if (piece.index === index) {
+            inIndex.push(piece);
+        };
+    });
+    return inIndex;
+};
+
+function getPieceByIndex(index) {
+    piecesInIndex = getPiecesByIndex(index)
+
+    if (piecesInIndex.length === 1) {
+        return piecesInIndex[0];
+    };
+
+    pieceInIndex = undefined;
+    piecesInIndex.forEach(piece => {
+        if (piece.owner !== player) {
+            return;
+        };
+        if (piece.type != 'btl') {
+            return
+        };
+        pieceInIndex = piece;
+    });
+};
+
 //#endregion
 //#region draw functions
-function drawCircle(x, y, rad, color) {
+function drawCircle(x, y, rad, color, fill) {
+    fill = fill || true;
+
     ctx.fillStyle = color;
     ctx.beginPath();
 
     ctx.arc(x, y, rad, 0, Math.PI*2)
 
     ctx.closePath();
-    ctx.fill();
+
+    if (fill) {
+        ctx.fill();
+    }
+    else {
+        ctx.stroke();
+    }
 }
 
 function drawHex(x, y, fill = true) {
@@ -268,13 +402,10 @@ function drawGrid() {
         const hex = allPositions[index];
         drawHex(hex.x, hex.y)
         if (index === hovering) {
-            ctx.fillStyle = "#909090";
-            ctx.beginPath();
-
-            ctx.arc(hex.x, hex.y, hexSize / (tileMul * 1.5), 0, Math.PI*2)
-
-            ctx.closePath();
-            ctx.fill();
+            drawCircle(hex.x, hex.y, hexSize / (tileMul * 1.5), "#909090")
+        }
+        if (selectedPiece && index === selectedPiece.index) {
+            drawCircle(hex.x, hex.y, (hexSize/tileMul)+ 1, "#FF0000", false)
         }
     }
 };
@@ -303,8 +434,11 @@ function drawPieces() {
         }
 
         if (piece.owner === 1) {
-
-        }
+            drawCircle(center.x, center.y, ( hexSize / tileMul), "#e0e0e0")
+        };
+        if (piece.owner === 2) {
+            drawCircle(center.x, center.y, ( hexSize / tileMul), "#404040")
+        };
 
         ctx.drawImage(image, pos.x + 1, pos.y, scale.x, scale.y)
 
@@ -317,11 +451,15 @@ function draw() {
     drawGrid();
     drawPieces();
 };
+
 //#endregion
 //#endregion
 // main 
-init();
-setInterval(sync,  100);
-setInterval(update, 20);
-setInterval(draw,   20);
-terminate();
+async function main() {
+    await init();
+    setInterval(sync,  100);
+    setInterval(update, 20);
+    setInterval(draw,   20);
+};
+
+main();
