@@ -38,28 +38,7 @@ app.post('/api/getNewMatch/', (req, res) => {
         id : matchId,
         p1Id : clientId,
         p2Id : -1,
-        boardState : [
-            {
-                'owner': 1,
-                'type' : 'ant',
-                'index': 0
-            },
-            {
-                'owner': 2,
-                'type' : 'hop',
-                'index': 3
-            },
-            {
-                'owner': 1,
-                'type' : 'bee',
-                'index': 1
-            },
-            {
-                'owner': 2,
-                'type' : 'ant',
-                'index': 9
-            }
-        ]
+        boardState : []
     };
     allMatches[id] = match;
     res.status(200).send(match);

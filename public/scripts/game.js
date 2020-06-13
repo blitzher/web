@@ -107,28 +107,7 @@ var player = 0;
 
 var boardState = [];
 // debugging purposes
-var boardState = [
-    {
-        'owner': 1,
-        'type' : 'ant',
-        'index': 0
-    },
-    {
-        'owner': 2,
-        'type' : 'hop',
-        'index': 3
-    },
-    {
-        'owner': 1,
-        'type' : 'bee',
-        'index': 1
-    },
-    {
-        'owner': 2,
-        'type' : 'ant',
-        'index': 9
-    }
-];
+var boardState = [];
 
 const sin30 = 1/2;
 const cos60 = sin30;
