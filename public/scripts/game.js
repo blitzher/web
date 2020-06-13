@@ -25,7 +25,16 @@ HIVEpiece = {
     beeImg : __beeImg,
     btlImg : __btlImg,
     mosImg : __mosImg,
-    spiImg : __spiImg
+    spiImg : __spiImg,
+    all : [
+        __antImg,
+        __hopImg,
+        __beeImg,
+        __btlImg,
+        __mosImg,
+        __spiImg
+    ]
+
 };
 
 
@@ -40,8 +49,11 @@ canvas.oncontextmenu = function (e) {
 };
 
 var ctx = canvas.getContext("2d");
+
+var menuWidth = 200;
 var gridRad = 3;
 var hexSize = 0;
+var menuHexSize = 20;
 var tileMul = 1.3;
 var allPositions = [];
 var allIndex = 0;
@@ -58,9 +70,9 @@ var serverData = {
 
 var player = 0;
 
-var occupied = [];
+var boardState = [];
 // debugging purposes
-var occupied = [
+var boardState = [
     {
         'owner': 1,
         'type' : 'ant',
@@ -93,7 +105,7 @@ async function init() {
     params = getParams(window.location.href);
 
     // get client Id from server
-    const response = await fetch("/api/getClientId")
+    const response = await fetch("/api/getClientId/")
     const clientId = await response.json();
     serverData.clientId = clientId.id;
     
@@ -101,14 +113,8 @@ async function init() {
     if (!params.match) {
         
         // send client id to server
-        const response = await fetch("/api/getNewMatch", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({id: serverData.clientId}) 
-        });
-        const match = await response.json();
+        const match = await post("/api/getNewMatch/", 
+                {id: serverData.clientId});
         serverData.matchId = match.id
         player = 1;
     }
@@ -122,6 +128,7 @@ async function init() {
     head = document.getElementById('h1').textContent = "Hive #" + serverData.matchId;
 
     // TODO: update <link> tag to reflect the same
+    link = document.getElementById('link').textContent = window.location.host + "?match=" + serverData.matchId
 };
 
 function terminate() {
@@ -130,20 +137,23 @@ function terminate() {
 //#endregion
 //#region update functions
 // sync with server
-function sync() {
-    
+async function sync() {
+    serverBoardState = await post("/api/getBoardState", {matchId: serverData.matchId});
+    boardState = serverBoardState;
 };
 
 function update() {
     // update board size depending on til placements
     pieceIndices = []
-    occupied.forEach(piece => {
+    boardState.forEach(piece => {
         pieceIndices.push(piece.index);
     });
     maxIndex = Math.max(...pieceIndices);
 
     // increase grid size if a piece is on the edge
     gridRad = getSphereByIndex(maxIndex) + 1;
+    // but limit it to 2
+    gridRad = Math.max(gridRad, 2)
     
     // decrease hex size if grid size increases
     shortestSide = Math.min(canvas.width, canvas.height)
@@ -172,12 +182,12 @@ canvas.addEventListener('mousemove', function(event) {
     }
 });
 
-function mouseDown(event) {    
+function mouseClick(event) {    
 
     switch (event.button) {
         case (0): // left mouse
             // get all pieces in the index which is being hovered
-            selectedNow = getPieceByIndex(getIndexByPos(mpos));
+            selectedNow = getPieceIndexByIndex(getIndexByPos(mpos));
             
             // if selected something unoccupied and selected something
             if (movePiece()) {
@@ -194,7 +204,7 @@ function mouseDown(event) {
     };
 };
 
-canvas.addEventListener('mousedown', mouseDown); 
+canvas.addEventListener('mousedown', mouseClick); 
 canvas.addEventListener('mouseup', (e) => {
     movePiece()
 });
@@ -223,23 +233,45 @@ function distance(point1, point2) {
 
 function movePiece() {
     // attempt to move a piece, checking for stuff before
-    selectedNow = getPieceByIndex(getIndexByPos(mpos));
+    selectedNow = getPieceIndexByIndex(getIndexByPos(mpos));
             
     // if selected something unoccupied and selected something
     
-    if (!selectedNow && selectedPiece) {
+    if (selectedNow === undefined && selectedPiece !== undefined) {
     
         if (getIndexByPos(mpos) === undefined) {
             return;
         }
 
-        selectedPiece.index = getIndexByPos(mpos);
+        boardState[selectedPiece].index = getIndexByPos(mpos);
         selectedPiece = undefined;
+
+        // update the server boardState
+        post("/api/updateBoardState/", 
+        {matchId: serverData.matchId, boardState: boardState});
         return true;
     };
 };
 
-var getParams = function (url) {
+async function post(url = '', data = {}) {
+    // Default options are marked with *
+    const response = await fetch(url, {
+      method: 'POST', // *GET, POST, PUT, DELETE, etc.
+      mode: 'cors', // no-cors, *cors, same-origin
+      cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+      credentials: 'same-origin', // include, *same-origin, omit
+      headers: {
+        'Content-Type': 'application/json'
+        // 'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      redirect: 'follow', // manual, *follow, error
+      referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
+      body: JSON.stringify(data) // body data type must match "Content-Type" header
+    });
+    return await response.json() // parses JSON response into native JavaScript objects
+}
+
+function getParams (url) {
 	var params = {};
 	var parser = document.createElement('a');
 	parser.href = url;
@@ -280,14 +312,14 @@ function getAllIndex() {
 
 function getAllPosition() {
     positions = [{
-        x: canvas.width/2,
+        x: (canvas.width-menuWidth)/2,
         y: canvas.height/2
     }];
     for (let sphere = 1; sphere < gridRad; sphere++) {
         amountOfHexes = 6*sphere
 
         // start by moving out, right
-        hexX = canvas.width/2 + (sphere * hexSize * 1.7);
+        hexX = (canvas.width-menuWidth)/2 + (sphere * hexSize * 1.7);
         hexY = canvas.height/2;
 
         // inital translation direction
@@ -336,7 +368,7 @@ function getIndexByPos(pos) {
 
 function getPiecesByIndex(index) {
     inIndex = [];
-    occupied.forEach(piece => {
+    boardState.forEach(piece => {
         if (piece.index === index) {
             inIndex.push(piece);
         };
@@ -361,6 +393,15 @@ function getPieceByIndex(index) {
         };
         pieceInIndex = piece;
     });
+};
+
+function getPieceIndexByIndex(boardIndex) {
+    for (let index = 0; index < boardState.length; index++) {
+        const piece = boardState[index];
+        if (piece.index === boardIndex) {
+            return index
+        };
+    };
 };
 
 //#endregion
@@ -404,14 +445,16 @@ function drawGrid() {
         if (index === hovering) {
             drawCircle(hex.x, hex.y, hexSize / (tileMul * 1.5), "#909090")
         }
-        if (selectedPiece && index === selectedPiece.index) {
+        if (selectedPiece !== undefined && index === boardState[selectedPiece].index) {
             drawCircle(hex.x, hex.y, (hexSize/tileMul)+ 1, "#FF0000", false)
         }
     }
 };
 
 function drawPieces() {
-    occupied.forEach(piece => {
+    for (let i = 0; i < boardState.length; i++) {
+        const piece = boardState[i];
+
         var image;
         switch (piece.type) {
             case ("ant"): image = HIVEpiece.antImg; break;
@@ -423,6 +466,11 @@ function drawPieces() {
         }
 
         center = getPosByIndex(piece.index);
+        if (selectedPiece === i) {
+            center = mpos;
+        }
+
+
         scale = {
             x: hexSize / tileMul,
             y: hexSize / tileMul
@@ -442,24 +490,34 @@ function drawPieces() {
 
         ctx.drawImage(image, pos.x + 1, pos.y, scale.x, scale.y)
 
-    });
-}
+    };
+};
+
+function drawMenu() {
+    
+};
 
 function draw() {
     
     ctx.clearRect(0,0, canvas.width, canvas.height);
     drawGrid();
     drawPieces();
+    drawMenu();
 };
 
 //#endregion
 //#endregion
+
 // main 
+async function mainLoop() {
+    update()
+    draw()
+    sync();
+};
+
 async function main() {
     await init();
-    setInterval(sync,  100);
-    setInterval(update, 20);
-    setInterval(draw,   20);
+    setInterval(mainLoop, 20);
 };
 
 main();
