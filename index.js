@@ -4,7 +4,7 @@ const bodyParser = require("body-parser")
 const app = express();
 const port = process.env.PORT || 8080;
 
-var allGames = {}
+var allMatches = {}
 var allClients = []
 
 // initalise and listen on port
@@ -13,18 +13,14 @@ app.listen(port, () => console.log('listening at ' + port));
 // publicise files in /public/
 app.use(express.static(__dirname + "/public/"));
 
-// use body parser
+// use body parser for json
 app.use(bodyParser.json());
-
-const api = require("./api")
-api(app);
 
 app.get("/{match}", (req, res) => {
     res.send(app.get("/"));
 });
 
-
-app.get('/api/getClientId', (req, res) => {
+app.get('/api/getClientId/', (req, res) => {
     body = {id : getClientId() }
     res.status(200).send(body);
 
@@ -32,28 +28,59 @@ app.get('/api/getClientId', (req, res) => {
 
 });
 
-app.post('/api/getNewMatch', (req, res) => {
+app.post('/api/getNewMatch/', (req, res) => {
     clientId = req.body.id;
     matchId = getMatchId();
+
+    console.log("[?] Starting new match for: " + clientId + ", matchId: " + matchId)
 
     match = {
         id : matchId,
         p1Id : clientId,
         p2Id : -1,
-        boardState : []
+        boardState : [
+            {
+                'owner': 1,
+                'type' : 'ant',
+                'index': 0
+            },
+            {
+                'owner': 2,
+                'type' : 'hop',
+                'index': 3
+            },
+            {
+                'owner': 1,
+                'type' : 'bee',
+                'index': 1
+            },
+            {
+                'owner': 2,
+                'type' : 'ant',
+                'index': 9
+            }
+        ]
     };
-    allGames[id] = match;
+    allMatches[id] = match;
     res.status(200).send(match);
 });
 
-app.post('/api/getMatch', (req, res) => {
+app.post('/api/getBoardState/', (req, res) => {
     matchId = req.body.matchId;
     match = getMatchById(matchId);
-    res.status(200).send(match);
+    res.status(200).send(match.boardState);
+});
+
+app.post('/api/updateBoardState/', (req, res) => {
+    matchId = req.body.matchId;
+    match = getMatchById(matchId);
+    match.boardState = req.body.boardState;
+    res.status(200).send({id:matchId});
 });
 
 function getMatchById(id) {
-    return allGames[id];
+    id = id.toString();
+    return allMatches[id];
 };
 
 function getClientId() {
@@ -71,9 +98,9 @@ function getClientId() {
 function getMatchId() {
     id = Math.round(Math.random() * 100);
 
-    allGameIds = Object.keys(allGames);
+    allGameIds = Object.keys(allMatches);
 
-    while (id in allGames) {
+    while (id in allMatches) {
         id = Math.round(Math.random() * 100);
     };
 
