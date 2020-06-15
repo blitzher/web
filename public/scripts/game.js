@@ -633,11 +633,11 @@ function draw() {
 async function mainLoop() {
     update()
     draw()
-    sync();
 };
 
 async function main() {
     await init();
+    setInterval(sync);
     setInterval(mainLoop, 20);
 };
 
