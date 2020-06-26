@@ -1,0 +1,21 @@
+body {
+    text-align: center;
+    background-color: #303040;
+    font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Verdana, sans-serif;
+}
+h1 {
+    
+    color: #bababa;
+}
+
+
+canvas {
+    background: #b0b0b0;
+    border-radius: 2em;
+}
+
+#link {
+    background: #b0b0b0;
+    border-radius: 2em;
+    
+}
